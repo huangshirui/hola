@@ -54,3 +54,10 @@
 ```
 
 播放顺序为：站点固定音频 → 设备上的西班牙语 voice → 无可用西班牙语 voice 时停止并提示。不要配置英语 TTS 作为兜底。
+
+
+### 生成标准西语音频
+
+仓库使用 `scripts/generate_audio.py` 生成固定朗读音频。当前固定为西班牙（Spain）女声 `es-ES-ElviraNeural`，语速 `-10%`，生成器版本 `edge-tts==7.2.8`。工作流 `.github/workflows/generate-audio.yml` 会在生成脚本或工作流本身更新并进入 `main` 后自动重新生成，也可以手工运行。
+
+这些工具只在生成阶段使用；网站运行时仍是纯静态文件，不依赖 Edge TTS 服务。
