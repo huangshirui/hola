@@ -1,0 +1,40 @@
+name: One-shot topic labels
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-shot-topic-labels.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update home topic labels
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('dist/app.js')
+          s = p.read_text(encoding='utf-8')
+          old1 = '<span class="pill">本期主题 · 入门</span><h2>数字 0–100</h2>'
+          old2 = '<span class="pill">本期主题 · 入门</span><h2>认识你和我</h2>'
+          new1 = '<span class="pill">主题 01</span><h2>数字 0–100</h2>'
+          new2 = '<span class="pill">主题 02</span><h2>认识你和我</h2>'
+          if old1 not in s or old2 not in s:
+              raise SystemExit('Expected home topic labels not found')
+          s = s.replace(old1, new1, 1).replace(old2, new2, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit change and remove one-shot workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/one-shot-topic-labels.yml
+          git add dist/app.js
+          git commit -m "fix: number home topics"
+          git push
