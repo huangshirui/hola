@@ -64,7 +64,7 @@ async def synthesize(text: str, target: Path, semaphore: asyncio.Semaphore) -> N
                     return
             except Exception as exc:
                 last_error = exc
-            await asyncio.sleep(attempt * 2)
+            await asyncio.sleep(5 * attempt)
         raise RuntimeError(f"failed to generate {text!r}: {last_error}")
 
 def classroom_phrases() -> dict[str, str]:
@@ -90,7 +90,7 @@ async def main() -> None:
     NUMBERS_ROOT.mkdir(parents=True, exist_ok=True)
     PHRASES_ROOT.mkdir(parents=True, exist_ok=True)
 
-    semaphore = asyncio.Semaphore(4)
+    semaphore = asyncio.Semaphore(1)
     tasks = []
     phrases = {**PHRASES, **classroom_phrases()}
     number_manifest = {}
