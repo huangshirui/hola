@@ -1,7 +1,7 @@
 {
   "name": "hola",
   "main": "./worker/index.js",
-  "compatibility_date": "2026-10-14",
+  "compatibility_date": "2026-10-13",
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
