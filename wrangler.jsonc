@@ -1,0 +1,13 @@
+{
+  "name": "hola",
+  "main": "./worker/index.js",
+  "compatibility_date": "2026-10-14",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": {
+    "enabled": true
+  }
+}

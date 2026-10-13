@@ -7,20 +7,39 @@
 - 数字 0–100：听读、口语识别、拼写和听音辨数。
 - 数字应用：看图数蔬果，以及 uno / un / una 练习。
 - 电话号码听力：逐位播放 9 位练习号码，保留前导 0，逐位核对答案。
-- 认识你和我（第 4–6 周）：虚构人物资料、问答听读、第一/第三人称口语与完整句子练习。姓名、父姓、母姓、年龄、国家、国籍、居住地与爱好。年龄以 2026-10-13 为准，不收集真实个人信息。
+- 认识你和我：虚构人物资料、问答听读、第一/第三人称口语与完整句子练习。姓名、父姓、母姓、年龄、国家、国籍、居住地与爱好。年龄以 2026-10-13 为准，不收集真实个人信息。
 - 适配桌面、平板和手机。
 
 ## 本地运行
 
-在项目目录执行 `python -m http.server 8000 --directory dist`，然后打开 http://localhost:8000 。
+仅查看静态前端时，可在项目目录执行：
 
-## Cloudflare Pages
+```bash
+python -m http.server 8000 --directory dist
+```
 
-网站为原生 HTML、CSS、JavaScript，无构建依赖、数据库或 OpenAI API。
+然后打开 `http://localhost:8000`。
 
-连接 GitHub 仓库后选择 main 分支，框架选择 None，构建命令留空，输出目录设置为 dist。也可以直接上传 dist 目录中的文件。
+需要同时调试 Worker API 时，使用 Wrangler：
 
-自定义域名需要在 Pages 项目内添加并按控制台提示设置 DNS。当前迁移仅准备源码，不修改现有站点的域名或部署。
+```bash
+npx wrangler@latest dev
+```
+
+## Cloudflare Workers
+
+Hola 使用 Cloudflare Workers + Static Assets 部署：
+
+- `dist/`：原生 HTML、CSS、JavaScript 与固定音频，无前端构建步骤。
+- `worker/index.js`：服务端 API 入口。
+- `wrangler.jsonc`：Worker 与静态资源配置。
+- `/api/*` 才优先进入 Worker；普通静态资源由 Cloudflare Static Assets 直接提供。
+
+生产部署使用 Cloudflare Workers Builds 直接连接 GitHub 仓库。生产分支为 `main`，不使用 GitHub Actions 进行 Worker 部署；每次 `main` 有新提交时由 Cloudflare 自动构建并执行 `npx wrangler deploy`。
+
+现有 GitHub Actions 仅用于生成固定 Azure Speech TTS 音频，与 Worker 部署无关。
+
+自定义域名为 `hola.verinasci.com`。
 
 ## 外部依赖
 
@@ -39,7 +58,6 @@
 
 项目代码采用 MIT License；课堂材料图片不属于 MIT 授权范围，详见上方教学图片说明。
 
-
 ## 固定朗读音频
 
 标准音频放在 `dist/audio/` 下，并在 `dist/audio/manifest.json` 中登记。例如：
@@ -57,7 +75,6 @@
 
 播放顺序为：站点固定音频 → 设备上的西班牙语 voice → 无可用西班牙语 voice 时停止并提示。不要配置英语 TTS 作为兜底。
 
-
 ### 生成标准西语音频
 
 仓库使用 `scripts/generate_audio.py` 通过正式 Azure Speech REST API 生成固定朗读音频。西班牙女声 `es-ES-ElviraNeural`，语速 `-10%`。生成脚本仅使用 Python 标准库和 Node，不依赖 Edge TTS。
@@ -67,7 +84,7 @@
 - `AZURE_SPEECH_KEY`：Speech 资源的 Key 1 或 Key 2。
 - `AZURE_SPEECH_REGION`：同一资源的区域代码，例如 `eastasia`。
 
-工作流 `.github/workflows/generate-audio.yml` 在生成脚本或句型数据进入 `main` 后自动运行，也支持手动运行。按每 3.2 秒最多一次请求生成，避免超出 F0 常用频率；已有同发音人、同语速且有效的音频会复用。全部音频生成成功后才更新清单，失败时不会提交半成品。Key 只用于 Action，不传到网站或写入生成文件；Cloudflare 不需要配置 Speech Key。
+工作流 `.github/workflows/generate-audio.yml` 在生成脚本或句型数据进入 `main` 后自动运行，也支持手动运行。按每 3.2 秒最多一次请求生成，避免超出 F0 常用频率；已有同发音人、同语速且有效的音频会复用。全部音频生成成功后才更新清单，失败时不会提交半成品。Key 只用于 Action，不传到网站或写入生成文件。
 
 网站运行时播放静态 MP3，不依赖 Azure 在线合成服务。
 
