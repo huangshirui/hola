@@ -60,8 +60,15 @@
 
 ### 生成标准西语音频
 
-仓库使用 `scripts/generate_audio.py` 生成固定朗读音频。当前固定为西班牙（Spain）女声 `es-ES-ElviraNeural`，语速 `-10%`，生成器版本 `edge-tts==7.2.8`。工作流 `.github/workflows/generate-audio.yml` 会在生成脚本或工作流本身更新并进入 `main` 后自动重新生成，也可以手工运行。
+仓库使用 `scripts/generate_audio.py` 通过正式 Azure Speech REST API 生成固定朗读音频。西班牙女声 `es-ES-ElviraNeural`，语速 `-10%`。生成脚本仅使用 Python 标准库和 Node，不依赖 Edge TTS。
 
-这些工具只在生成阶段使用；网站运行时仍是纯静态文件，不依赖 Edge TTS 服务。
+在 GitHub → Settings → Secrets and variables → Actions 中配置两个 Repository secrets：
+
+- `AZURE_SPEECH_KEY`：Speech 资源的 Key 1 或 Key 2。
+- `AZURE_SPEECH_REGION`：同一资源的区域代码，例如 `eastasia`。
+
+工作流 `.github/workflows/generate-audio.yml` 在生成脚本或句型数据进入 `main` 后自动运行，也支持手动运行。按每 3.2 秒最多一次请求生成，避免超出 F0 常用频率；已有同发音人、同语速且有效的音频会复用。全部音频生成成功后才更新清单，失败时不会提交半成品。Key 只用于 Action，不传到网站或写入生成文件；Cloudflare 不需要配置 Speech Key。
+
+网站运行时播放静态 MP3，不依赖 Azure 在线合成服务。
 
 个人信息句型的数据位于 `dist/people-content.js`，音频生成脚本直接读取这些数据；更改数据后会触发音频生成工作流。电话号码重用已有 0–9 固定音频，无需在线 TTS。完整句子接受页面提供的标准句型和年龄数字写法，尚不做自由表达语义判断。
