@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - scripts/generate_audio.py
+      - dist/people-content.js
       - .github/workflows/generate-audio.yml
   workflow_dispatch:
 
@@ -28,6 +29,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Set up Node for classroom phrase extraction
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
 
       - name: Install audio generator
         run: python -m pip install --disable-pip-version-check edge-tts==7.2.8

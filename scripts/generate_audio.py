@@ -2,6 +2,8 @@
 import asyncio
 import json
 import shutil
+import hashlib
+import subprocess
 from pathlib import Path
 
 import edge_tts
@@ -65,33 +67,48 @@ async def synthesize(text: str, target: Path, semaphore: asyncio.Semaphore) -> N
             await asyncio.sleep(attempt * 2)
         raise RuntimeError(f"failed to generate {text!r}: {last_error}")
 
+def classroom_phrases() -> dict[str, str]:
+    # Use the exact question/answer data displayed by the website.
+    source = ROOT / "dist" / "people-content.js"
+    program = source.read_text(encoding="utf-8") + "\nconsole.log(JSON.stringify(peopleProfiles.flatMap(p => [false,true].flatMap(t => peopleQuestions(p,t).flatMap(q => [q.question, q.alternative, ...q.answers.filter(a => !/[0-9]/.test(a))]).filter(Boolean)))));"
+    result = subprocess.run(["node", "-e", program], check=True, capture_output=True, text=True)
+    texts = json.loads(result.stdout)
+    texts.append("¿Cuál es su número de teléfono?")
+    return {text: "people-" + hashlib.sha256(text.encode()).hexdigest()[:20] for text in texts}
+
 async def main() -> None:
     voices = await edge_tts.list_voices()
     available = {voice.get("ShortName") for voice in voices}
     if VOICE not in available:
         raise RuntimeError(f"required voice {VOICE} is unavailable")
 
-    if LOCALE_ROOT.exists():
+    prior = json.loads(MANIFEST_PATH.read_text()) if MANIFEST_PATH.exists() else {}
+    meta = prior.get("meta", {})
+    reuse = meta.get("voice") == VOICE and meta.get("rate") == RATE and meta.get("generator") == "edge-tts 7.2.8"
+    if LOCALE_ROOT.exists() and not reuse:
         shutil.rmtree(LOCALE_ROOT)
     NUMBERS_ROOT.mkdir(parents=True, exist_ok=True)
     PHRASES_ROOT.mkdir(parents=True, exist_ok=True)
 
     semaphore = asyncio.Semaphore(4)
     tasks = []
+    phrases = {**PHRASES, **classroom_phrases()}
     number_manifest = {}
     phrase_manifest = {}
 
     for n in range(101):
         path = NUMBERS_ROOT / f"{n}.mp3"
-        tasks.append(synthesize(spanish_number(n), path, semaphore))
+        if not (reuse and path.exists() and path.stat().st_size > 0):
+            tasks.append(synthesize(spanish_number(n), path, semaphore))
         number_manifest[str(n)] = f"/audio/es-ES/numbers/{n}.mp3"
 
     # Reuse the number 1 audio for the standalone "uno" phrase.
     phrase_manifest["uno"] = "/audio/es-ES/numbers/1.mp3"
 
-    for text, slug in PHRASES.items():
+    for text, slug in phrases.items():
         path = PHRASES_ROOT / f"{slug}.mp3"
-        tasks.append(synthesize(text, path, semaphore))
+        if not (reuse and path.exists() and path.stat().st_size > 0):
+            tasks.append(synthesize(text, path, semaphore))
         phrase_manifest[text] = f"/audio/es-ES/phrases/{slug}.mp3"
 
     await asyncio.gather(*tasks)
@@ -111,7 +128,7 @@ async def main() -> None:
         encoding="utf-8",
     )
 
-    expected = 101 + len(PHRASES)
+    expected = 101 + len(phrases)
     generated = list(LOCALE_ROOT.rglob("*.mp3"))
     if len(generated) != expected:
         raise RuntimeError(f"expected {expected} mp3 files, found {len(generated)}")
