@@ -1,7 +1,6 @@
 (() => {
   const SDK = window.SpeechSDK;
   const LANGUAGE = 'es-ES';
-  const PROVIDER = `Azure Speech · ${LANGUAGE}`;
   const TOKEN_URL = '/api/speech/token';
   const TOKEN_TTL_MS = 8 * 60 * 1000;
   const nativeRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -55,12 +54,6 @@
           'Azure Speech（es-ES）识别结果仅供练习参考，不是专业发音评分；语音会发送至 Azure 进行识别，本站不保存录音或答案。',
         );
       }
-    }
-
-    for (const id of ['speech-feedback', 'people-speech-feedback']) {
-      const el = document.getElementById(id);
-      if (!el || !el.textContent || el.textContent.startsWith(PROVIDER)) continue;
-      el.textContent = `${PROVIDER}｜${el.textContent}`;
     }
   }
 
