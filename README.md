@@ -4,88 +4,77 @@
 
 ## 功能
 
-- 数字 0–100：听读、口语识别、拼写和听音辨数。
+- 主题 01「数字 0–100」：听读、口语识别、拼写和听音辨数。
 - 数字应用：看图数蔬果，以及 uno / un / una 练习。
 - 电话号码听力：逐位播放 9 位练习号码，保留前导 0，逐位核对答案。
-- 认识你和我：虚构人物资料、问答听读、第一/第三人称口语与完整句子练习。姓名、父姓、母姓、年龄、国家、国籍、居住地与爱好。年龄以 2026-10-13 为准，不收集真实个人信息。
+- 主题 02「认识你和我」：虚构人物资料、问答听读、第一/第三人称口语与完整句子练习；覆盖姓名、父姓、母姓、年龄、国家、国籍、居住地与爱好。
 - 适配桌面、平板和手机。
 
-## 本地运行
+## 架构与部署
 
-仅查看静态前端时，可在项目目录执行：
+Hola 使用 Cloudflare Workers + Static Assets：
 
-```bash
+- `dist/`：浏览器静态页面、JavaScript、样式、图片与固定音频。
+- `worker/index.js`：仅处理 `/api/*` 服务端接口，其余请求由 Static Assets 直接提供。
+- `wrangler.jsonc`：Worker 与静态资源配置。
+- GitHub `main` 分支推送后，由 Cloudflare Workers Builds 自动构建和部署；不使用 GitHub Actions 做 Cloudflare 部署。
+
+Cloudflare Workers Builds 的 build command 为：
+
+```sh
+npm install --no-audit --no-fund && npm run build
+```
+
+`npm run build` 会把固定版本的 Azure Speech SDK browser bundle 和 `speech-processor.js` 从 npm 包复制到 `dist/vendor/`，因此用户运行时不依赖第三方 CDN。
+
+本地开发先执行：
+
+```sh
+npm install
+npm run build
 python -m http.server 8000 --directory dist
 ```
 
-然后打开 `http://localhost:8000`。
+然后打开 `http://localhost:8000`。仅测试静态页面时也可直接启动静态服务器，但口语识别需要 Worker 的 `/api/speech/token`。
 
-需要同时调试 Worker API 时，使用 Wrangler：
+## 语音识别（STT）
 
-```bash
-npx wrangler@latest dev
+口语识别使用官方 `microsoft-cognitiveservices-speech-sdk` browser SDK，并固定识别语言为 `es-ES`。浏览器原生 `SpeechRecognition` / `webkitSpeechRecognition` 不作为静默 fallback，避免部分 Android/国产浏览器实际落到系统中文识别。
+
+前端通过 `/api/speech/token` 获取 Azure Speech 短期 token；长期 Azure Key 只保存在 Cloudflare Worker Secret 中：
+
+- `AZURE_SPEECH_KEY`
+- `AZURE_SPEECH_REGION`
+
+识别链路：浏览器麦克风 → Azure Speech SDK → Azure Speech（`es-ES`）。页面会在语音反馈中显示 `Azure Speech · es-ES`，便于确认当前识别来源。本站不保存录音或答案；语音会发送至 Azure 进行识别。识别结果仅用于练习反馈，不是专业发音评分。
+
+## 固定朗读音频（TTS）
+
+标准音频放在 `dist/audio/`，映射位于 `dist/audio/manifest.json`。播放顺序为：站点固定音频 → 设备上的西班牙语 voice → 无可用西班牙语 voice 时停止；不会降级到英语或系统默认 voice。
+
+仓库使用 `scripts/generate_audio.py` 通过 Azure Speech REST API 生成固定朗读音频，当前使用西班牙女声 `es-ES-ElviraNeural`，语速 `-10%`。这部分仍由 `.github/workflows/generate-audio.yml` 执行，因为它负责生成内容并提交 MP3，不属于 Cloudflare 部署流程。
+
+在 GitHub Actions Repository secrets 中配置：
+
+- `AZURE_SPEECH_KEY`
+- `AZURE_SPEECH_REGION`
+
+工作流会复用已有同发音人、同语速且有效的音频，全部生成成功后才更新清单。Key 不写入网站或生成文件。
+
+## 教学内容与图片
+
+`dist/assets/` 中五张蔬果图片来自用户提供的课堂材料。其权利归原权利人所有，不属于项目 MIT 许可证授权的素材；重新分发或用于其他用途前应确认相应权限。
+
+个人信息句型的数据位于 `dist/people-content.js`。练习人物均为虚构资料，不要求填写真实个人信息。
+
+## 测试
+
+```sh
+node --check dist/app.js
+node --check dist/azure-speech-recognition.js
+npm test
 ```
-
-## Cloudflare Workers
-
-Hola 使用 Cloudflare Workers + Static Assets 部署：
-
-- `dist/`：原生 HTML、CSS、JavaScript 与固定音频，无前端构建步骤。
-- `worker/index.js`：服务端 API 入口。
-- `wrangler.jsonc`：Worker 与静态资源配置。
-- `/api/*` 才优先进入 Worker；普通静态资源由 Cloudflare Static Assets 直接提供。
-
-生产部署使用 Cloudflare Workers Builds 直接连接 GitHub 仓库。生产分支为 `main`，不使用 GitHub Actions 进行 Worker 部署；每次 `main` 有新提交时由 Cloudflare 自动构建并执行 `npx wrangler deploy`。
-
-现有 GitHub Actions 仅用于生成固定 Azure Speech TTS 音频，与 Worker 部署无关。
-
-自定义域名为 `hola.verinasci.com`。
-
-## 外部依赖
-
-- Google Fonts：字体无法加载时使用系统字体。后续可本地化。
-- 固定朗读音频：`dist/audio/manifest.json` 可把数字或固定短句映射到站点内 MP3/Opus。存在映射时优先播放固定音频，以保证 iPhone/Android 发音一致。
-- speechSynthesis：仅作为固定音频缺失时的兜底。代码只选择设备提供的西班牙语 voice；找不到西班牙语 voice 时停止播放，不降级到英语或系统默认 voice。
-- SpeechRecognition：始终请求 `es-ES`。实际识别仍由浏览器/系统语音服务完成，支持程度、口音模型和网络可用性因设备而异，识别结果不是专业发音评分。
-
-本站不保存录音或答案，不代表浏览器语音服务不处理音频。
-
-## 教学图片
-
-`dist/assets/` 中五张蔬果图片来自用户提供的课堂材料。其权利归原权利人所有，不能视为项目代码许可证授权的素材；重新分发或用于其他用途前应确认相应权限。
 
 ## 开源许可
 
-项目代码采用 MIT License；课堂材料图片不属于 MIT 授权范围，详见上方教学图片说明。
-
-## 固定朗读音频
-
-标准音频放在 `dist/audio/` 下，并在 `dist/audio/manifest.json` 中登记。例如：
-
-```json
-{
-  "numbers": {
-    "23": "/audio/es-ES/numbers/23.mp3"
-  },
-  "phrases": {
-    "una naranja": "/audio/es-ES/phrases/una-naranja.mp3"
-  }
-}
-```
-
-播放顺序为：站点固定音频 → 设备上的西班牙语 voice → 无可用西班牙语 voice 时停止并提示。不要配置英语 TTS 作为兜底。
-
-### 生成标准西语音频
-
-仓库使用 `scripts/generate_audio.py` 通过正式 Azure Speech REST API 生成固定朗读音频。西班牙女声 `es-ES-ElviraNeural`，语速 `-10%`。生成脚本仅使用 Python 标准库和 Node，不依赖 Edge TTS。
-
-在 GitHub → Settings → Secrets and variables → Actions 中配置两个 Repository secrets：
-
-- `AZURE_SPEECH_KEY`：Speech 资源的 Key 1 或 Key 2。
-- `AZURE_SPEECH_REGION`：同一资源的区域代码，例如 `eastasia`。
-
-工作流 `.github/workflows/generate-audio.yml` 在生成脚本或句型数据进入 `main` 后自动运行，也支持手动运行。按每 3.2 秒最多一次请求生成，避免超出 F0 常用频率；已有同发音人、同语速且有效的音频会复用。全部音频生成成功后才更新清单，失败时不会提交半成品。Key 只用于 Action，不传到网站或写入生成文件。
-
-网站运行时播放静态 MP3，不依赖 Azure 在线合成服务。
-
-个人信息句型的数据位于 `dist/people-content.js`，音频生成脚本直接读取这些数据；更改数据后会触发音频生成工作流。电话号码重用已有 0–9 固定音频，无需在线 TTS。完整句子接受页面提供的标准句型和年龄数字写法，尚不做自由表达语义判断。
+项目代码采用 MIT License；课堂材料图片不属于 MIT 授权范围。

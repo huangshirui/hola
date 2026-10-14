@@ -1,0 +1,13 @@
+{
+  "name": "hola-spanish-practice",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Static Spanish practice site with a Cloudflare Worker API layer.",
+  "scripts": {
+    "build": "node scripts/copy-speech-sdk.mjs && node --check dist/azure-speech-recognition.js && node --check dist/app.js",
+    "test": "node --test tests/*.test.cjs && python -m unittest tests/test_audio.py"
+  },
+  "dependencies": {
+    "microsoft-cognitiveservices-speech-sdk": "1.52.0"
+  }
+}
